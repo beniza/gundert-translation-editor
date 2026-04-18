@@ -3,7 +3,8 @@
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { signIn as nextAuthSignIn } from '@/lib/auth';
+import { auth } from '@/lib/auth';
+import { signIn as nextAuthSignIn } from 'next-auth/react';
 
 export async function authenticateUser(email: string, password: string) {
   try {
@@ -17,26 +18,18 @@ export async function authenticateUser(email: string, password: string) {
     });
 
     if (!user) {
+      console.error('User not found:', email);
       return { error: 'Invalid email or password' };
     }
 
     // TODO: implement proper password hashing/verification with bcrypt
     // For demo: accept the demo password
     if (password !== 'Demo@2026!') {
+      console.error('Invalid password for user:', email);
       return { error: 'Invalid email or password' };
     }
 
-    // Create session using NextAuth
-    const result = await nextAuthSignIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
-    if (!result || result.error) {
-      return { error: result?.error || 'Failed to create session' };
-    }
-
+    console.log('Authentication successful for:', email);
     return { success: true };
   } catch (error) {
     console.error('Authentication error:', error);
