@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { hash } from 'bcryptjs';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -7,32 +8,25 @@ export async function GET(request: NextRequest) {
   try {
     console.log('[SEED] Starting seed process...');
 
-    // Check if demo user exists
+    // Delete existing user if present (for re-seeding with bcrypt)
     const existingUser = await db.query.users.findFirst({
       where: eq(users.email, 'demo@example.com'),
     });
 
-    console.log('[SEED] Existing user:', existingUser);
-
     if (existingUser) {
-      return NextResponse.json({
-        exists: true,
-        user: {
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-        },
-      });
+      console.log('[SEED] Deleting existing user for re-seed...');
+      await db.delete(users).where(eq(users.email, 'demo@example.com'));
     }
 
-    // Create demo user if it doesn't exist
-    console.log('[SEED] Creating user...');
+    // Create demo user with hashed password
+    console.log('[SEED] Creating user with hashed password...');
+    const hashedPassword = await hash('Demo@2026!', 10);
     const newUser = await db
       .insert(users)
       .values({
         email: 'demo@example.com',
         name: 'Demo Translator',
-        password: 'Demo@2026!',
+        password: hashedPassword,
       })
       .returning();
 

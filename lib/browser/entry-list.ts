@@ -208,7 +208,28 @@ export function buildReferenceSearchTokens(query: string): string[] {
   const format = detectReferenceFormat(query);
   const tokens = new Set<string>([query]);
 
-  if (format === 'usfm') {
+  if (format === 'mnemonic') {
+    // Parse mnemonic format: 0BBCCCVVVWWWWW
+    const match = query.match(/^0(\d{2})(\d{3})(\d{3})\d{5}$/);
+    if (match) {
+      const [, bookStr, chapterStr, verseStr] = match;
+      const bookNum = parseInt(bookStr, 10) - 1;
+      const chapter = parseInt(chapterStr, 10);
+      const verse = parseInt(verseStr, 10);
+
+      const usfmCode = Object.entries(USFM_TO_MNEMONIC_BOOK).find(
+        ([, num]) => num === bookNum
+      )?.[0];
+
+      if (usfmCode) {
+        tokens.add(`${usfmCode} ${chapter}:${verse}`);
+        const bookName = USFM_TO_BOOK_NAME[usfmCode];
+        if (bookName) {
+          tokens.add(`${bookName} ${chapter}:${verse}`);
+        }
+      }
+    }
+  } else if (format === 'usfm') {
     const match = query.match(/^([A-Z0-9]+)\s+(\d+):(\d+)$/i);
     if (match) {
       const [, bookCode, chapter, verse] = match;

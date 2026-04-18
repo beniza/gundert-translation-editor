@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { compare } from 'bcryptjs';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -26,9 +27,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             return null;
           }
 
-          // TODO: implement password hashing/verification with bcrypt
-          // For demo: accept the demo password
-          if (credentials.password !== 'Demo@2026!') {
+          // Verify password with bcrypt
+          if (!user.password) {
+            return null;
+          }
+
+          const passwordMatch = await compare(credentials.password as string, user.password);
+          if (!passwordMatch) {
             return null;
           }
 
