@@ -1,6 +1,6 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
+import { authenticateUser } from '@/lib/auth-actions';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -17,17 +17,12 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      });
+      // Call server action to authenticate
+      const result = await authenticateUser(email, password);
 
-      console.log('Sign-in result:', result);
-
-      // Treat any result with an error as failed credentials.
-      if (!result || result.error) {
-        setError(result?.error || 'Invalid email or password');
+      if (result.error) {
+        setError(result.error);
+        setLoading(false);
         return;
       }
 
@@ -37,7 +32,6 @@ export default function SignIn() {
     } catch (err) {
       console.error('Auth error:', err);
       setError('An error occurred. Please try again.');
-    } finally {
       setLoading(false);
     }
   }
