@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import {
   expandNeedsWorkChip,
   normalizeStatusFilters,
@@ -6,6 +6,7 @@ import {
   serializeStatusToQuery,
   normalizeSearchQuery,
   parseSearchFromQuery,
+  parseResourcesFromQuery,
   detectReferenceFormat,
   buildReferenceSearchTokens,
   rankSearchMatchType,
@@ -13,8 +14,12 @@ import {
   getResourcePriority,
   parsePagination,
   normalizeEntryListRow,
+  fetchEntryListWithStatus,
   ALL_TRANSLATION_STATUSES,
 } from '@/lib/browser/entry-list';
+import { db } from '@/lib/db';
+import { organizations, resources, resourceVersions, resourceEntries } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // ─────────────────────────────────────────────
 // expandNeedsWorkChip
@@ -154,6 +159,65 @@ describe('parseSearchFromQuery', () => {
 
   it('trims and returns the normalized query', () => {
     expect(parseSearchFromQuery('  lion  ')).toBe('lion');
+  });
+});
+
+describe('parseResourcesFromQuery', () => {
+  it('returns empty array for null input', () => {
+    expect(parseResourcesFromQuery(null)).toEqual([]);
+  });
+
+  it('returns empty array for empty string input', () => {
+    expect(parseResourcesFromQuery('')).toEqual([]);
+  });
+
+  it('returns empty array for whitespace-only input', () => {
+    expect(parseResourcesFromQuery('   ')).toEqual([]);
+  });
+
+  it('parses a single resource slug', () => {
+    expect(parseResourcesFromQuery('ubs-fauna')).toEqual(['ubs-fauna']);
+  });
+
+  it('parses multiple resource slugs in order', () => {
+    expect(parseResourcesFromQuery('ubs-fauna,ubs-flora,ubs-realia')).toEqual([
+      'ubs-fauna',
+      'ubs-flora',
+      'ubs-realia',
+    ]);
+  });
+
+  it('trims surrounding whitespace for each slug', () => {
+    expect(parseResourcesFromQuery(' ubs-fauna ,  ubs-flora ')).toEqual([
+      'ubs-fauna',
+      'ubs-flora',
+    ]);
+  });
+
+  it('drops empty segments caused by extra commas', () => {
+    expect(parseResourcesFromQuery('ubs-fauna,,ubs-flora,')).toEqual([
+      'ubs-fauna',
+      'ubs-flora',
+    ]);
+  });
+
+  it('preserves duplicate slugs', () => {
+    expect(parseResourcesFromQuery('ubs-fauna,ubs-fauna')).toEqual([
+      'ubs-fauna',
+      'ubs-fauna',
+    ]);
+  });
+
+  it('preserves unknown slugs', () => {
+    expect(parseResourcesFromQuery('unknown-source')).toEqual(['unknown-source']);
+  });
+
+  it('handles mixed valid and unknown slugs with whitespace', () => {
+    expect(parseResourcesFromQuery(' ubs-fauna, unknown-source ,ubs-realia ')).toEqual([
+      'ubs-fauna',
+      'unknown-source',
+      'ubs-realia',
+    ]);
   });
 });
 
@@ -519,5 +583,211 @@ describe('normalizeEntryListRow', () => {
 
   it('always sets matchType to browse', () => {
     expect(normalizeEntryListRow(baseRow).matchType).toBe('browse');
+  });
+});
+
+// ─────────────────────────────────────────────
+// fetchEntryListWithStatus - Resource Filtering
+// ─────────────────────────────────────────────
+
+const shouldRunDbIntegration =
+  process.env.RUN_DB_INTEGRATION_TESTS === 'true' &&
+  Boolean(process.env.POSTGRES_URL_NON_POOLING);
+
+const describeDbIntegration = shouldRunDbIntegration ? describe : describe.skip;
+
+describeDbIntegration('GH-009: fetchEntryListWithStatus - Resource Filter Integration', () => {
+  let testOrgId: string;
+  let testFaunaResourceId: string;
+  let testFloraResourceId: string;
+  let testRealiaResourceId: string;
+  let testFaunaVersionId: string;
+  let testFloraVersionId: string;
+  let testRealiaVersionId: string;
+  const TEST_MARKER = 'gh009-integration-test';
+
+  beforeAll(async () => {
+    // Create test organization
+    const org = await db
+      .insert(organizations)
+      .values({
+        name: 'GH-009 Test Org',
+        slug: 'gh-009-test-org',
+      })
+      .returning();
+    testOrgId = org[0].id;
+
+    // Create fauna resource
+    const faunaRes = await db
+      .insert(resources)
+      .values({
+        org_id: testOrgId,
+        name: 'UBS FAUNA',
+        slug: 'ubs-fauna',
+        source: 'UBS',
+        format: 'XML',
+        language_code: 'en',
+      })
+      .returning();
+    testFaunaResourceId = faunaRes[0].id;
+
+    // Create flora resource
+    const floraRes = await db
+      .insert(resources)
+      .values({
+        org_id: testOrgId,
+        name: 'UBS FLORA',
+        slug: 'ubs-flora',
+        source: 'UBS',
+        format: 'XML',
+        language_code: 'en',
+      })
+      .returning();
+    testFloraResourceId = floraRes[0].id;
+
+    // Create realia resource
+    const realiaRes = await db
+      .insert(resources)
+      .values({
+        org_id: testOrgId,
+        name: 'UBS REALIA',
+        slug: 'ubs-realia',
+        source: 'UBS',
+        format: 'XML',
+        language_code: 'en',
+      })
+      .returning();
+    testRealiaResourceId = realiaRes[0].id;
+
+    // Create versions for each resource
+    const faunaVer = await db
+      .insert(resourceVersions)
+      .values({
+        resource_id: testFaunaResourceId,
+        version: '1.0',
+        status: 'published',
+      })
+      .returning();
+    testFaunaVersionId = faunaVer[0].id;
+
+    const floraVer = await db
+      .insert(resourceVersions)
+      .values({
+        resource_id: testFloraResourceId,
+        version: '1.0',
+        status: 'published',
+      })
+      .returning();
+    testFloraVersionId = floraVer[0].id;
+
+    const realiaVer = await db
+      .insert(resourceVersions)
+      .values({
+        resource_id: testRealiaResourceId,
+        version: '1.0',
+        status: 'published',
+      })
+      .returning();
+    testRealiaVersionId = realiaVer[0].id;
+
+    // Create 3 entries for each resource type
+    const baseEntry = { source_language: 'en' };
+
+    for (let i = 1; i <= 3; i++) {
+      await db.insert(resourceEntries).values({
+        resource_version_id: testFaunaVersionId,
+        entry_key: `${TEST_MARKER}:FAUNA:${i}`,
+        source_content: { title: `Fauna Entry ${i}`, key: `${TEST_MARKER}:FAUNA:${i}` },
+        ...baseEntry,
+      });
+
+      await db.insert(resourceEntries).values({
+        resource_version_id: testFloraVersionId,
+        entry_key: `${TEST_MARKER}:FLORA:${i}`,
+        source_content: { title: `Flora Entry ${i}`, key: `${TEST_MARKER}:FLORA:${i}` },
+        ...baseEntry,
+      });
+
+      await db.insert(resourceEntries).values({
+        resource_version_id: testRealiaVersionId,
+        entry_key: `${TEST_MARKER}:REALIA:${i}`,
+        source_content: { title: `Realia Entry ${i}`, key: `${TEST_MARKER}:REALIA:${i}` },
+        ...baseEntry,
+      });
+    }
+  });
+
+  afterAll(async () => {
+    // Cleanup: delete in reverse order to respect foreign keys
+    await db.delete(resourceEntries).where(eq(resourceEntries.resource_version_id, testFaunaVersionId));
+    await db.delete(resourceEntries).where(eq(resourceEntries.resource_version_id, testFloraVersionId));
+    await db.delete(resourceEntries).where(eq(resourceEntries.resource_version_id, testRealiaVersionId));
+
+    await db.delete(resourceVersions).where(eq(resourceVersions.resource_id, testFaunaResourceId));
+    await db.delete(resourceVersions).where(eq(resourceVersions.resource_id, testFloraResourceId));
+    await db.delete(resourceVersions).where(eq(resourceVersions.resource_id, testRealiaResourceId));
+
+    await db.delete(resources).where(eq(resources.org_id, testOrgId));
+    await db.delete(organizations).where(eq(organizations.id, testOrgId));
+  });
+
+  const filterTestEntries = (entries: any[]) =>
+    entries.filter((e) => e.entryKey.includes(TEST_MARKER));
+
+  it('returns only fauna test entries when filtering by ubs-fauna', async () => {
+    const result = await fetchEntryListWithStatus(null, 'ml', [...ALL_TRANSLATION_STATUSES], 50, [
+      'ubs-fauna',
+    ]);
+    const testEntries = filterTestEntries(result.entries);
+    expect(testEntries).toHaveLength(3);
+    expect(testEntries.every((e) => e.resourceSlug === 'ubs-fauna')).toBe(true);
+    expect(testEntries.every((e) => e.entryKey.includes('FAUNA'))).toBe(true);
+  });
+
+  it('returns only flora test entries when filtering by ubs-flora', async () => {
+    const result = await fetchEntryListWithStatus(null, 'ml', [...ALL_TRANSLATION_STATUSES], 50, [
+      'ubs-flora',
+    ]);
+    const testEntries = filterTestEntries(result.entries);
+    expect(testEntries).toHaveLength(3);
+    expect(testEntries.every((e) => e.resourceSlug === 'ubs-flora')).toBe(true);
+    expect(testEntries.every((e) => e.entryKey.includes('FLORA'))).toBe(true);
+  });
+
+  it('returns 0 entries when filtering by unknown slug', async () => {
+    const result = await fetchEntryListWithStatus(null, 'ml', [...ALL_TRANSLATION_STATUSES], 50, [
+      'ubs-unknown',
+    ]);
+    expect(result.entries).toHaveLength(0);
+  });
+
+  it('filters correctly by fauna slug with pagination', async () => {
+    const result = await fetchEntryListWithStatus('1', 'ml', [...ALL_TRANSLATION_STATUSES], 50, [
+      'ubs-fauna',
+    ]);
+    const testEntries = filterTestEntries(result.entries);
+    expect(testEntries.length).toBeGreaterThan(0);
+    expect(testEntries.every((e) => e.resourceSlug === 'ubs-fauna')).toBe(true);
+  });
+
+  it('combines resource filter with status filter correctly', async () => {
+    const result = await fetchEntryListWithStatus(
+      null,
+      'ml',
+      ['draft', 'approved'],
+      50,
+      ['ubs-fauna']
+    );
+    const testEntries = filterTestEntries(result.entries);
+    expect(testEntries.every((e) => e.resourceSlug === 'ubs-fauna')).toBe(true);
+  });
+
+  it('resource slug matching is case-sensitive (lowercase stored)', async () => {
+    const result = await fetchEntryListWithStatus(null, 'ml', [...ALL_TRANSLATION_STATUSES], 50, [
+      'ubs-flora',
+    ]);
+    const testEntries = filterTestEntries(result.entries);
+    expect(testEntries.length).toBeGreaterThan(0);
+    expect(testEntries.every((e) => e.resourceSlug === 'ubs-flora')).toBe(true);
   });
 });
