@@ -7,7 +7,7 @@ import {
   serializeStatusToQuery,
   type TranslationStatus,
 } from '@/lib/browser/entry-list';
-import { lexiconHrefWithResource, toggleResource, toggle } from '@/lib/browser/lexicon-utils';
+import { lexiconHrefWithResource, toggleResource, toggle, param } from '@/lib/browser/lexicon-utils';
 import LexiconInfiniteList from './LexiconInfiniteList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,11 +41,6 @@ const STATUS_CHIP: Record<TranslationStatus, string> = {
   draft: 'bg-amber-100 text-amber-800 ring-amber-200',
   untranslated: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
-
-function param(value: string | string[] | undefined): string | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
 
 function lexiconHref(page: number, statuses: TranslationStatus[], query?: string | null): string {
   const parts: string[] = [`page=${page}`];

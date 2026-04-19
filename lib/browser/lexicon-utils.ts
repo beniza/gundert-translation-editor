@@ -3,6 +3,17 @@ import { serializeStatusToQuery, ALL_TRANSLATION_STATUSES, type TranslationStatu
 export { ALL_TRANSLATION_STATUSES, type TranslationStatus };
 
 /**
+ * Extract a single string value from Next.js searchParams values
+ * Next.js can provide string | string[] | undefined for any param
+ * @param value - Raw searchParam value
+ * @returns First string value, or null
+ */
+export function param(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+/**
  * Build lexicon page URL with filters applied
  * @param page - Page number (1-indexed)
  * @param statuses - Array of translation statuses to filter by
