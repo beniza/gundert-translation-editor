@@ -22,10 +22,16 @@ export default async function Home() {
               </p>
               <div className="flex gap-4 justify-center">
                 <Link
-                  href="/translator"
+                  href="/lexicon"
                   className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition"
                 >
-                  Open Translator
+                  Browse Lexicon
+                </Link>
+                <Link
+                  href="/translator"
+                  className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition"
+                >
+                  Translator Tools
                 </Link>
                 <Link
                   href="/api/auth/signout"
