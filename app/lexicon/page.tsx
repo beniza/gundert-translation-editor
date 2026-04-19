@@ -6,6 +6,7 @@ import {
   serializeStatusToQuery,
   type TranslationStatus,
 } from '@/lib/browser/entry-list';
+import LexiconInfiniteList from './LexiconInfiniteList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ export default async function LexiconPage({ searchParams }: PageProps) {
   }));
 
   const isFiltered = activeStatuses.length < ALL_TRANSLATION_STATUSES.length;
+  void isFiltered; // used only in filter chips section
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -160,79 +162,15 @@ export default async function LexiconPage({ searchParams }: PageProps) {
           })}
         </div>
 
-        {/* ── Entry list ── */}
-        {result.entries.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
-            <p className="text-sm text-slate-500">
-              {result.total === 0
-                ? 'No entries found. Run the import first.'
-                : 'No entries match the current filter.'}
-            </p>
-            {isFiltered && (
-              <Link href="/lexicon" className="mt-3 inline-block text-sm text-blue-600 hover:underline">
-                Clear filters
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {result.entries.map((entry) => (
-              <Link
-                key={entry.id}
-                href={`/lexicon/${entry.resourceSlug}/${entry.resourceVersion}/${entry.entryKey}`}
-                className="group flex items-start justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-blue-300 hover:shadow-md"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                    <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-700">
-                      {entry.entryKey}
-                    </code>
-                    <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">
-                      {entry.resourceBadge}
-                    </span>
-                  </div>
-                  <p className="truncate text-sm font-medium text-slate-900 group-hover:text-blue-700">
-                    {entry.title}
-                  </p>
-                </div>
-
-                <div className="ml-4 flex shrink-0 flex-col items-end gap-1.5">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${STATUS_CHIP[entry.translationStatus]}`}>
-                    {STATUS_LABELS[entry.translationStatus]}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    {new Date(entry.updatedAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {/* ── Pagination ── */}
-        <div className="mt-6 flex items-center justify-between">
-          <p className="text-xs text-slate-500">
-            Page {result.page} · {result.entries.length} of {result.total.toLocaleString()} entries
-          </p>
-          <div className="flex gap-2">
-            {result.page > 1 && (
-              <Link
-                href={lexiconHref(result.page - 1, activeStatuses, queryParam)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                ← Previous
-              </Link>
-            )}
-            {result.hasMore && (
-              <Link
-                href={lexiconHref(result.page + 1, activeStatuses, queryParam)}
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
-              >
-                Next →
-              </Link>
-            )}
-          </div>
-        </div>
+        {/* ── Entry list (infinite scroll) ── */}
+        <LexiconInfiniteList
+          initialEntries={result.entries}
+          initialHasMore={result.hasMore}
+          initialPage={result.page}
+          total={result.total}
+          activeStatuses={activeStatuses}
+          query={queryParam}
+        />
       </div>
     </div>
   );
