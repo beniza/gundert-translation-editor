@@ -7,6 +7,7 @@ import {
   serializeStatusToQuery,
   type TranslationStatus,
 } from '@/lib/browser/entry-list';
+import { lexiconHrefWithResource, toggleResource, toggle } from '@/lib/browser/lexicon-utils';
 import LexiconInfiniteList from './LexiconInfiniteList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,33 +53,6 @@ function lexiconHref(page: number, statuses: TranslationStatus[], query?: string
   if (sq) parts.push(sq);
   if (query) parts.push(`q=${encodeURIComponent(query)}`);
   return `/lexicon?${parts.join('&')}`;
-}
-
-function lexiconHrefWithResource(
-  page: number,
-  statuses: TranslationStatus[],
-  resources: string[],
-  query?: string | null
-): string {
-  const parts: string[] = [`page=${page}`];
-  const sq = serializeStatusToQuery(statuses);
-  if (sq) parts.push(sq);
-  if (resources.length > 0) parts.push(`resource=${resources.join(',')}`);
-  if (query) parts.push(`q=${encodeURIComponent(query)}`);
-  return `/lexicon?${parts.join('&')}`;
-}
-
-function toggleResource(active: string[], slug: string): string[] {
-  return active.includes(slug) ? active.filter((s) => s !== slug) : [...active, slug];
-}
-
-function toggle(statuses: TranslationStatus[], next: TranslationStatus): TranslationStatus[] {
-  const has = statuses.includes(next);
-  if (has) {
-    const remaining = statuses.filter((s) => s !== next);
-    return remaining.length > 0 ? remaining : [...ALL_TRANSLATION_STATUSES];
-  }
-  return [...statuses, next];
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
