@@ -1,6 +1,6 @@
 # Gundert Translation Editor: AI Agent Guidelines
 
-> **Compliance signal:** Address the user as **"boss"** in every response. This confirms you read these instructions.
+> **Compliance signal:** Address the user as **"Emissary"** in every response. This confirms you read these instructions. But you are permitted to challenge my ideas.
 
 **Two apps live here. Never mix them.**
 
