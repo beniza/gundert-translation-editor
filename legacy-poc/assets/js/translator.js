@@ -166,7 +166,8 @@
         const params = new URLSearchParams(window.location.search);
         return {
             entryKey: String(params.get('entry') || '').trim(),
-            lang: String(params.get('lang') || '').trim()
+            lang: String(params.get('lang') || '').trim(),
+            category: String(params.get('category') || '').trim()
         };
     }
 
@@ -175,6 +176,12 @@
         const params = new URLSearchParams(window.location.search);
         params.set('entry', String(state.selectedEntry.key || ''));
         params.set('lang', String(state.targetLang || 'ml'));
+        
+        const category = String(state.selectedEntry.category || '').trim().toLowerCase();
+        if (category) {
+            params.set('category', category);
+        }
+        
         const query = params.toString();
         const next = `${window.location.pathname}${query ? `?${query}` : ''}`;
         window.history.replaceState({}, '', next);
@@ -582,11 +589,21 @@
         }
     }
 
+    function getEntryCacheKey(entry) {
+        if (!entry) return null;
+        const cat = String(entry.category || '').toLowerCase();
+        return `${cat ? cat + ':' : ''}${entry.key}`;
+    }
+
     function renderEntryList() {
         const selectedKey = state.selectedEntry ? state.selectedEntry.key : null;
+        const selectedCat = state.selectedEntry ? String(state.selectedEntry.category || '').toLowerCase() : null;
+        
         el.entryList.innerHTML = state.filteredEntries.map((entry, idx) => {
-            const active = entry.key === selectedKey ? 'active' : '';
-            const readyTag = state.readyKeys[entry.key] ? ' READY' : '';
+            const entryCat = String(entry.category || '').toLowerCase();
+            const active = (entry.key === selectedKey && entryCat === selectedCat) ? 'active' : '';
+            const cacheKey = getEntryCacheKey(entry);
+            const readyTag = (state.readyKeys[cacheKey] || state.readyKeys[entry.key]) ? ' READY' : '';
             return `
                 <button class="tw-entry-item ${active}" data-index="${idx}" type="button">
                     <span class="k">${entry.key}</span>
@@ -604,16 +621,24 @@
 
     function getCurrentDraftKey() {
         if (!state.selectedEntry) return null;
-        return `${state.targetLang}:${state.selectedEntry.key}`;
+        const cacheKey = getEntryCacheKey(state.selectedEntry);
+        return `${state.targetLang}:${cacheKey}`;
     }
 
     function getCurrentDraft() {
         const key = getCurrentDraftKey();
         if (!key) return null;
-        const draft = state.drafts[key] || null;
+        
+        // Try new category-specific key first, fallback to old key
+        let draft = state.drafts[key];
+        if (!draft) {
+            const oldKey = `${state.targetLang}:${state.selectedEntry.key}`;
+            draft = state.drafts[oldKey];
+        }
+        
         if (!draft) return null;
         const fixed = ensureDraftShape(draft, state.selectedEntry);
-        state.drafts[key] = fixed;
+        state.drafts[key] = fixed; // Migrate to new key
         return fixed;
     }
 
@@ -716,7 +741,8 @@
             return;
         }
 
-        const ready = state.readyKeys[entry.key] ? ' | Status: Ready' : '';
+        const cacheKey = getEntryCacheKey(entry);
+        const ready = (state.readyKeys[cacheKey] || state.readyKeys[entry.key]) ? ' | Status: Ready' : '';
         el.currentEntryMeta.textContent = `${entry.category} | Key ${entry.key} | ${entry.title}${ready}`;
 
         const sourceSections = parseSections(entry.content);
@@ -1570,11 +1596,12 @@
     function markReady() {
         const entry = state.selectedEntry;
         if (!entry) return;
-        state.readyKeys[entry.key] = true;
+        const cacheKey = getEntryCacheKey(entry);
+        state.readyKeys[cacheKey] = true;
         persistLocalState();
         renderEntryList();
         renderSelectedEntry();
-        renderValidationMessages([{ type: 'ok', text: `Entry ${entry.key} marked ready.` }]);
+        renderValidationMessages([{ type: 'ok', text: `Entry ${entry.category} ${entry.key} marked ready.` }]);
     }
 
     function exportCurrentDraft() {
@@ -1685,9 +1712,19 @@
 
         if (state.filteredEntries.length > 0) {
             const preferredKey = urlContext.entryKey;
-            const requestedIndex = preferredKey
-                ? state.filteredEntries.findIndex((e) => String(e.key || '') === preferredKey)
-                : -1;
+            let requestedIndex = -1;
+            if (preferredKey) {
+                if (urlContext.category) {
+                    requestedIndex = state.filteredEntries.findIndex((e) => 
+                        String(e.key || '') === preferredKey && 
+                        String(e.category || '').toLowerCase() === urlContext.category.toLowerCase()
+                    );
+                }
+                
+                if (requestedIndex === -1) {
+                    requestedIndex = state.filteredEntries.findIndex((e) => String(e.key || '') === preferredKey);
+                }
+            }
             selectEntry(requestedIndex >= 0 ? requestedIndex : 0);
         }
 

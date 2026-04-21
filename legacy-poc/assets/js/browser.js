@@ -754,6 +754,10 @@
             const params = new URLSearchParams();
             params.set('entry', String(entry.key || ''));
             params.set('lang', String(targetLang || 'ml'));
+            const category = String(entry.category || '').toLowerCase();
+            if (category) {
+                params.set('category', category);
+            }
             return `translator.html?${params.toString()}`;
         }
 
