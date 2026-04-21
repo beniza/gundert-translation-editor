@@ -365,11 +365,21 @@
             };
         }
 
+        function getEntryCacheKey(entry) {
+            if (!entry) return null;
+            const cat = String(entry.category || '').toLowerCase();
+            return `${cat ? cat + ':' : ''}${entry.key}`;
+        }
+
         function getDraftForEntry(entry, lang) {
             if (!entry) return null;
             const state = loadTranslationState(lang);
-            const key = `${lang}:${entry.key}`;
-            const draft = state.drafts[key];
+            const cacheKey = getEntryCacheKey(entry);
+            const newKey = `${lang}:${cacheKey}`;
+            const oldKey = `${lang}:${entry.key}`;
+            
+            const draft = state.drafts[newKey] || state.drafts[oldKey];
+            
             if (!draft || typeof draft !== 'object') {
                 return null;
             }
@@ -382,7 +392,8 @@
         function isEntryCompletedInLang(entry, lang) {
             if (!entry) return false;
             const state = loadTranslationState(lang);
-            const ready = Boolean(state.ready[String(entry.key)]);
+            const cacheKey = getEntryCacheKey(entry);
+            const ready = Boolean(state.ready[cacheKey] || state.ready[String(entry.key)]);
             if (!ready) {
                 return false;
             }
