@@ -124,7 +124,7 @@
 
             <label for="mtApiKey">API Key (in-memory only)</label>
             <input id="mtApiKey" type="password" autocomplete="off" placeholder="sk-...">
-            <div class="tw-field-note">Optional for local use. On Vercel, server-side env keys are used automatically if this field is empty.</div>
+            <div class="tw-field-note">Required if running this standalone legacy app on Vercel without a backend. Bypasses the proxy and reaches out to the provider directly.</div>
         </section>
     </aside>
 

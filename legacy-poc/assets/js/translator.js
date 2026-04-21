@@ -1559,7 +1559,18 @@
             renderSelectedEntry();
             renderValidationMessages([{ type: 'ok', text: `Machine draft applied using ${state.mtModel}.` }]);
         } catch (err) {
-            renderValidationMessages([{ type: 'error', text: `Machine draft failed: ${err.message || String(err)}` }]);
+            const msg = err.message || String(err);
+            if (msg.includes('404') && !state.mtApiKey) {
+                const userKey = window.prompt("The serverless backend is unavailable in this deployment.\n\nPlease enter your LLM API Key to translate directly in your browser. (The key will only exist in this browser session)");
+                if (userKey && userKey.trim()) {
+                    if (el.mtApiKey) el.mtApiKey.value = userKey.trim();
+                    gatherMtConfigFromUi();
+                    el.translateBtn.disabled = false;
+                    el.translateBtn.textContent = originalLabel;
+                    return machineDraftDemo();
+                }
+            }
+            renderValidationMessages([{ type: 'error', text: `Machine draft failed: ${msg}` }]);
         } finally {
             el.translateBtn.disabled = false;
             el.translateBtn.textContent = originalLabel;
